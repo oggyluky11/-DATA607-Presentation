@@ -1,0 +1,99 @@
+---
+title: "Jaro Winkler"
+author: "Fan Xu"
+date: "10/22/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r 1, message = FALSE, warning= FALSE}
+library(stringdist)
+library(RCurl)
+library(rvest)
+library(tidyverse)
+library(stringr)
+library(combinat)
+library(kableExtra)
+```
+
+1. Read data
+```{r connect data source}
+black_list <- read.csv("https://raw.githubusercontent.com/oggyluky11/-DATA607-Presentation/master/Black_List.csv", stringsAsFactors = FALSE, header = TRUE)
+
+names <- read.csv ("https://raw.githubusercontent.com/oggyluky11/-DATA607-Presentation/master/Names.csv", stringsAsFactors = FALSE, header = TRUE)
+
+kable(black_list)
+
+kable(names)
+```
+
+2. Define functions
+```{r functions}
+#create a function to get all permutations of first name / middlename / last name combination.
+
+name_perm <- function(name_string) {
+  name_perms <- unlist(str_split(name_string,' ')) %>%
+    permn() %>%
+    lapply(function(x) str_c(x, collapse = ' ')) %>%
+    unlist()
+  return(name_perms)
+}
+#name_perm("Donald Duck")
+
+
+#create a function to calculate Jaro-Winkler Similarity Score
+jw_sim <- function(namestring, blacklist) {
+  sim_score <- 1-stringdistmatrix(namestring,blacklist,method = "jw", p = 0.1)
+  return(sim_score)
+}
+
+```
+
+3. Define match table
+```{r define match table}
+result <- data.frame(cust_name = character(),
+                     cust_name_variant = character(),
+                     match_name = character(),
+                     match_result = character(),
+                     match_score = numeric(),
+                     stringsAsFactors = FALSE)
+
+```
+
+
+4. Match process
+```{r match}
+
+threshold_score <- 0.90
+
+for (i in 1:length(names$Cust.Names)) {
+  name_perms <- name_perm(names$Cust.Names[i])
+  
+  for (j in 1:length(name_perms)) {
+    for (k in 1:length(black_list$Black.List)) {
+      jw_score <- jw_sim(name_perms[j],black_list$Black.List[k])
+      result <- add_row(result,
+                          cust_name = names$Cust.Names[i],
+                          cust_name_variant = name_perms[j],
+                          match_name = black_list$Black.List[k],
+                          match_result = ifelse(jw_score >= threshold_score, "True", "False"),
+                          match_score = jw_score)
+    }
+  }
+}
+
+
+result %>% filter(match_result == 'True')
+
+#result
+```
+
